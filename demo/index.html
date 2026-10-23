@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="A small demo of consent-gated tracking: vendor scripts stay out of the page until consent is granted, and leave on opt-out.">
+  <title>Consent-gated tracking demo</title>
+  <style>
+    :root {
+      --bg: #f6f6f3;
+      --surface: #ffffff;
+      --text: #1c1e21;
+      --muted: #5d636b;
+      --border: #dcdcd5;
+      --accent: #0b5fd1;
+      --accent-ink: #ffffff;
+      --good: #17694a;
+      --good-bg: #e2f3ea;
+      --warn: #8a5a00;
+      --warn-bg: #fbefd2;
+      --bad: #a5271b;
+      --bad-bg: #fbe4e1;
+      --idle: #5d636b;
+      --idle-bg: #ecece7;
+      --radius: 12px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #121416;
+        --surface: #1b1e21;
+        --text: #e9ebed;
+        --muted: #a0a7ae;
+        --border: #2e3338;
+        --accent: #6db1ff;
+        --accent-ink: #0b1a2b;
+        --good: #6fd6a4;
+        --good-bg: #17352a;
+        --warn: #f0c36a;
+        --warn-bg: #3a2e12;
+        --bad: #ff9a8f;
+        --bad-bg: #40201c;
+        --idle: #a0a7ae;
+        --idle-bg: #272b2f;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+
+    main {
+      max-width: 62rem;
+      margin: 0 auto;
+      padding: 2rem 1rem 3rem;
+    }
+
+    h1 { margin: 0 0 0.25rem; font-size: 1.6rem; line-height: 1.2; }
+    h2 { margin: 0 0 0.75rem; font-size: 1rem; }
+    p { margin: 0 0 0.75rem; }
+    .lead { max-width: 42rem; color: var(--muted); margin-bottom: 1.5rem; }
+    .hint { color: var(--muted); font-size: 0.875rem; margin: 0.75rem 0 0; }
+
+    a { color: var(--accent); }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+      gap: 0.75rem;
+      margin: 0 0 1rem;
+      padding: 0;
+      list-style: none;
+    }
+
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 1.9rem;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stat span { color: var(--muted); font-size: 0.875rem; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+      gap: 1rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.1rem;
+    }
+
+    .wide { grid-column: 1 / -1; }
+
+    .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr)); gap: 0.5rem; }
+
+    button {
+      font: inherit;
+      color: var(--text);
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem 0.75rem;
+      cursor: pointer;
+    }
+
+    button:hover { border-color: var(--muted); }
+    button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+    button.primary:hover { filter: brightness(1.08); }
+
+    button.link {
+      border: 0;
+      padding: 0;
+      color: var(--accent);
+      text-decoration: underline;
+    }
+
+    .chip {
+      display: inline-block;
+      padding: 0.05rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      background: var(--idle-bg);
+      color: var(--idle);
+    }
+
+    .chip[data-state="granted"], .chip[data-status="loaded"] { background: var(--good-bg); color: var(--good); }
+    .chip[data-state="denied"], .chip[data-status="failed"] { background: var(--bad-bg); color: var(--bad); }
+    .chip[data-status="loading"] { background: var(--warn-bg); color: var(--warn); }
+
+    .facts { display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 0.75rem; align-items: center; margin: 0 0 1rem; }
+    .facts dt { color: var(--muted); }
+    .facts dd { margin: 0; }
+
+    .vendors { list-style: none; margin: 0; padding: 0; }
+    .vendors li {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.75rem;
+      align-items: center;
+      padding: 0.45rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .vendors li:last-child { border-bottom: 0; }
+
+    pre {
+      margin: 0;
+      padding: 0.75rem;
+      overflow-x: auto;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font: 0.8125rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .log {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      max-height: 20rem;
+      overflow-y: auto;
+      font: 0.8125rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .log li {
+      display: grid;
+      grid-template-columns: 5.5rem 1fr;
+      gap: 0.75rem;
+      padding: 0.3rem 0.4rem;
+      border-bottom: 1px solid var(--border);
+      border-left: 3px solid transparent;
+    }
+
+    .log li[data-tone="good"] { border-left-color: var(--good); }
+    .log li[data-tone="warn"] { border-left-color: var(--warn); }
+    .log li[data-tone="bad"] { border-left-color: var(--bad); }
+    .log time { color: var(--muted); }
+    .log .empty { color: var(--muted); grid-template-columns: 1fr; }
+
+    @media (max-width: 30rem) {
+      main { padding-top: 1.25rem; }
+      .log li { grid-template-columns: 1fr; gap: 0; }
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      button { transition: border-color 0.15s, filter 0.15s; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Consent-gated tracking</h1>
+    <p class="lead">
+      Vendor scripts stay out of this page until consent is granted, and leave again on opt-out.
+      Press the buttons and watch the log. Everything runs locally: the two example vendors only
+      write to the console.
+    </p>
+
+    <ul class="stats" aria-label="Summary">
+      <li class="stat"><strong id="stat-loaded">0</strong><span>Vendor scripts loaded (now)</span></li>
+      <li class="stat"><strong id="stat-queued">0</strong><span>Queued events (now)</span></li>
+      <li class="stat"><strong id="stat-flushed">0</strong><span>Flushed (total)</span></li>
+      <li class="stat"><strong id="stat-dropped">0</strong><span>Dropped (total)</span></li>
+    </ul>
+
+    <div class="layout">
+      <section class="card" aria-labelledby="consent-title">
+        <h2 id="consent-title">Consent</h2>
+        <dl class="facts">
+          <dt>State</dt>
+          <dd><span id="state" class="chip" data-state="unknown">unknown</span></dd>
+          <dt>Environment</dt>
+          <dd><span id="env" class="chip">prod</span></dd>
+        </dl>
+        <div class="row">
+          <button type="button" id="accept" class="primary">Accept</button>
+          <button type="button" id="reject">Reject</button>
+          <button type="button" id="opt-out">Opt out</button>
+        </div>
+        <p class="hint">
+          Reject is a first answer of no. Opt out withdraws an earlier yes. Both set the state to
+          denied. <button type="button" id="reset" class="link">Reset to unknown</button>
+        </p>
+      </section>
+
+      <section class="card" aria-labelledby="events-title">
+        <h2 id="events-title">Page events</h2>
+        <div class="row">
+          <button type="button" data-track="view_pricing">view_pricing</button>
+          <button type="button" data-track="start_signup">start_signup</button>
+        </div>
+        <p class="hint">
+          While consent is unknown these wait in a queue. They are sent on Accept and dropped on
+          Reject or Opt out.
+        </p>
+      </section>
+
+      <section class="card" aria-labelledby="vendors-title">
+        <h2 id="vendors-title">Vendors</h2>
+        <ul id="vendors" class="vendors"></ul>
+        <p class="hint">
+          Each one is a script tag the loader adds and removes. Open the browser console to see
+          what the scripts print.
+        </p>
+      </section>
+
+      <section class="card" aria-labelledby="attribution-title">
+        <h2 id="attribution-title">First-touch attribution</h2>
+        <pre id="attribution">Nothing stored yet.</pre>
+        <p class="hint">
+          Try <a href="?utm_source=newsletter&amp;utm_campaign=spring&amp;gclid=demo123">campaign
+          parameters</a> or the <a href="?env=qa">qa environment</a>, then press Accept.
+          <button type="button" id="forget" class="link">Forget stored data</button>
+        </p>
+      </section>
+
+      <section class="card wide" aria-labelledby="log-title">
+        <h2 id="log-title">Log (newest first)</h2>
+        <ol id="log" class="log" role="log" aria-live="polite">
+          <li class="empty">Nothing has happened yet.</li>
+        </ol>
+      </section>
+    </div>
+
+    <noscript><p class="hint">This demo needs JavaScript.</p></noscript>
+  </main>
+
+  <script type="module" src="./demo.js"></script>
+</body>
+</html>

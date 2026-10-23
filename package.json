@@ -1,0 +1,42 @@
+{
+  "name": "consent-gated-tracking",
+  "version": "0.1.0",
+  "description": "Keeps marketing and analytics scripts from loading until a consent signal says yes, and shuts them down on opt-out. Captures first-touch campaign attribution.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test",
+    "lint": "eslint ."
+  },
+  "keywords": [
+    "consent",
+    "privacy",
+    "tracking",
+    "utm",
+    "attribution",
+    "opt-out"
+  ],
+  "author": "Augusto Gentile",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agugentile/consent-gated-tracking.git"
+  },
+  "homepage": "https://agugentile.github.io/consent-gated-tracking/demo/",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
+    "jsdom": "^29.1.1"
+  }
+}
